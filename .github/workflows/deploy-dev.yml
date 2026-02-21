@@ -163,19 +163,6 @@ jobs:
           target: /opt/duocafe
           overwrite: true
 
-      - name: Actualizar script de deploy en VPS
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            curl -sL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/deploy-env.sh" \
-              -o /tmp/deploy-env.sh && \
-            sudo mv /tmp/deploy-env.sh /opt/duocafe/scripts/deploy-env.sh && \
-            sudo chmod +x /opt/duocafe/scripts/deploy-env.sh
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -191,10 +178,16 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | \
               docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+            # Descargar script actualizado (nuevo archivo, sin sobreescribir el existente)
+            curl -sL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/deploy-env.sh" \
+              -o /opt/duocafe/scripts/deploy-env-ci.sh \
+              && chmod +x /opt/duocafe/scripts/deploy-env-ci.sh \
+              || cp /opt/duocafe/scripts/deploy-env.sh /opt/duocafe/scripts/deploy-env-ci.sh
+
             IMAGE_TAG="dev-sha-$(echo ${{ github.sha }} | cut -c1-7)" \
             GHCR_OWNER="${{ github.repository_owner }}" \
             DEPLOY_DIR="/opt/duocafe" \
-              bash /opt/duocafe/scripts/deploy-env.sh dev
+              bash /opt/duocafe/scripts/deploy-env-ci.sh dev
 
       - name: Resultado del deploy
         if: always()
