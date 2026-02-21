@@ -1,0 +1,282 @@
+version: "3.8"
+# =================================================
+# DUOCAFE - Ambiente: DEVELOPMENT
+# Dominio: dev.${DOMAIN}
+# Redis DB: 2
+# Base de datos: duocafe_dev
+#
+# Levantar: docker compose up -d
+# Logs:     docker compose logs -f nestjs-api
+# =================================================
+
+x-supabase-common: &supabase-common
+  networks:
+    - duocafe-infra
+    - duocafe-dev
+  restart: unless-stopped
+
+x-app-common: &app-common
+  networks:
+    - duocafe-infra
+    - duocafe-dev
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "3"
+
+services:
+
+  # ── GoTrue (Supabase Auth) ────────────────────────
+  dev-auth:
+    <<: *supabase-common
+    image: supabase/gotrue:v2.151.0
+    container_name: duocafe-dev-auth
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: https://api-dev.${DOMAIN}
+      GOTRUE_SITE_URL: https://dev.${DOMAIN}
+      GOTRUE_URI_ALLOW_LIST: "https://dev.${DOMAIN}"
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/duocafe_dev?search_path=auth
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-inbucket-dev}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-2500}
+      GOTRUE_SMTP_ADMIN_EMAIL: noreply@duocafe.local
+      GOTRUE_SMTP_SENDER_NAME: DuoCafe Dev
+      GOTRUE_RATE_LIMIT_HEADER: X-Forwarded-For
+      GOTRUE_DISABLE_SIGNUP: "false"
+    expose:
+      - "9999"
+    depends_on:
+      - dev-inbucket
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9999/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.5" }
+
+  # ── Inbucket: email catcher para dev ─────────────
+  dev-inbucket:
+    <<: *supabase-common
+    image: inbucket/inbucket:3.0.4
+    container_name: duocafe-dev-inbucket
+    expose:
+      - "2500"
+      - "9000"
+    ports:
+      - "9001:9000"   # Web UI: http://VPS_IP:9001
+    labels:
+      - "traefik.enable=false"
+
+  # ── PostgREST ─────────────────────────────────────
+  dev-rest:
+    <<: *supabase-common
+    image: postgrest/postgrest:v12.0.3
+    container_name: duocafe-dev-rest
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/duocafe_dev
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.5" }
+
+  # ── Kong (Supabase API Gateway) ───────────────────
+  dev-kong:
+    <<: *supabase-common
+    image: kong:2.8.1
+    container_name: duocafe-dev-kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY_DEV}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+    volumes:
+      - ../../docker/supabase/kong.yml:/var/lib/kong/kong.yml:ro
+    expose:
+      - "8000"
+    ports:
+      - "8002:8000"   # Acceso directo para debugging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dev-supabase.rule=Host(`supabase-dev.${DOMAIN}`)"
+      - "traefik.http.routers.dev-supabase.entrypoints=websecure"
+      - "traefik.http.routers.dev-supabase.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dev-supabase.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.25" }
+
+  # ── NestJS API ────────────────────────────────────
+  dev-api:
+    <<: *app-common
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER}/duocafe-api:latest}
+    container_name: duocafe-dev-api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@pgbouncer:5432/duocafe_dev
+      SUPABASE_URL: http://dev-kong:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY_DEV}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 2
+      CORS_ORIGINS: https://dev.${DOMAIN}
+      LOG_LEVEL: debug
+    expose:
+      - "3000"
+    ports:
+      - "3002:3000"   # Acceso directo para debugging
+    depends_on:
+      dev-kong:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dev-api.rule=Host(`api-dev.${DOMAIN}`)"
+      - "traefik.http.routers.dev-api.entrypoints=websecure"
+      - "traefik.http.routers.dev-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dev-api.middlewares=rate-dev@docker,security-headers@docker,compress@docker"
+      - "traefik.http.services.dev-api.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits: { memory: 1G, cpus: "1.0" }
+
+  # ── Next.js Web ───────────────────────────────────
+  dev-web:
+    <<: *app-common
+    image: ${WEB_IMAGE:-ghcr.io/${GHCR_OWNER}/duocafe-web:latest}
+    container_name: duocafe-dev-web
+    environment:
+      NODE_ENV: development
+    expose:
+      - "3000"
+    ports:
+      - "4002:3000"   # Acceso directo para debugging
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dev-web.rule=Host(`dev.${DOMAIN}`)"
+      - "traefik.http.routers.dev-web.entrypoints=websecure"
+      - "traefik.http.routers.dev-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dev-web.middlewares=security-headers@docker,compress@docker"
+      - "traefik.http.services.dev-web.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.5" }
+
+  # ── BullMQ Worker ─────────────────────────────────
+  dev-worker:
+    <<: *app-common
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER}/duocafe-api:latest}
+    container_name: duocafe-dev-worker
+    command: ["node", "dist/worker.js"]
+    environment:
+      NODE_ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 2
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@pgbouncer:5432/duocafe_dev
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+      LOG_LEVEL: debug
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.5" }
+
+  # ── Supabase Studio ───────────────────────────────
+  dev-studio:
+    <<: *supabase-common
+    image: supabase/studio:2024.01.22-sha-bfbb53b
+    container_name: duocafe-dev-studio
+    environment:
+      STUDIO_PG_META_URL: http://dev-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEFAULT_ORGANIZATION_NAME: DuoCafe Dev
+      DEFAULT_PROJECT_NAME: DuoCafe Dev
+      SUPABASE_URL: http://dev-kong:8000
+      SUPABASE_PUBLIC_URL: https://supabase-dev.${DOMAIN}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY_DEV}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+      AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
+    expose:
+      - "3000"
+    ports:
+      - "54322:3000"   # http://VPS_IP:54322
+    labels:
+      - "traefik.enable=false"
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.25" }
+
+  dev-meta:
+    <<: *supabase-common
+    image: supabase/postgres-meta:v0.80.0
+    container_name: duocafe-dev-meta
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: postgres
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: duocafe_dev
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.25" }
+
+networks:
+  duocafe-infra:
+    name: duocafe-infra
+    external: true
+  duocafe-dev:
+    name: duocafe-dev
+    driver: bridge

@@ -1,0 +1,180 @@
+name: Deploy → DEV
+
+# Dispara en push a develop (feature/* se mergea aqui)
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false   # No cancelar deploys en curso
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/duocafe-api
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/duocafe-web
+  DEPLOY_ENV: dev
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # 1. Unit tests obligatorios antes del deploy
+  # ─────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Get pnpm store
+        id: pnpm-cache
+        run: echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @duocafe/shared test
+      - run: pnpm --filter @duocafe/api test
+
+  # ─────────────────────────────────────────────────────────────
+  # 2. Build y push imagenes (paralelo, solo si tests pasan)
+  # ─────────────────────────────────────────────────────────────
+  build-api:
+    name: Build API Image
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generar tag
+        id: tag
+        run: echo "image_tag=dev-sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE_API }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.image_tag }}
+            type=raw,value=dev-latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=api-dev
+          cache-to: type=gha,scope=api-dev,mode=max
+          platforms: linux/amd64
+
+  build-web:
+    name: Build Web Image
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generar tag
+        id: tag
+        run: echo "image_tag=dev-sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE_WEB }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.image_tag }}
+            type=raw,value=dev-latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web-dev
+          cache-to: type=gha,scope=web-dev,mode=max
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.DEV_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.DEV_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_API_URL=${{ secrets.DEV_API_URL }}
+            NEXT_BUILD_STANDALONE=true
+
+  # ─────────────────────────────────────────────────────────────
+  # 3. Deploy al ambiente DEV del VPS
+  # ─────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy DEV
+    runs-on: ubuntu-latest
+    needs: [build-api, build-web]
+    environment: development   # GitHub Environment para trazabilidad
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 10m
+          script: |
+            set -euo pipefail
+
+            # Login al registry en el VPS para poder hacer pull
+            echo "${{ secrets.GHCR_TOKEN }}" | \
+              docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            IMAGE_TAG="dev-sha-$(echo ${{ github.sha }} | cut -c1-7)" \
+            GHCR_OWNER="${{ github.repository_owner }}" \
+            DEPLOY_DIR="/opt/duocafe" \
+              bash /opt/duocafe/scripts/deploy-env.sh dev
+
+      - name: Resultado del deploy
+        if: always()
+        run: |
+          echo "Deploy DEV: ${{ job.status }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "URL: http://dev.5.189.162.47.nip.io"

@@ -1,0 +1,80 @@
+version: "3.8"
+
+# =================================================
+# DUOCAFE - Overrides de Staging (VPS de pruebas)
+# Usar: docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Las variables IMAGE_TAG y GHCR_OWNER se leen del entorno
+# (las inyecta el script de deploy desde .env.deploy)
+# =================================================
+
+services:
+
+  # Usa imagen pre-construida del registry en lugar de build local
+  nestjs-web:
+    image: ghcr.io/${GHCR_OWNER}/duocafe-web:${IMAGE_TAG:-latest}
+    build: !reset null
+    deploy:
+      replicas: 1   # Una sola replica en staging
+
+  nestjs-api:
+    image: ghcr.io/${GHCR_OWNER}/duocafe-api:${IMAGE_TAG:-latest}
+    build: !reset null
+    deploy:
+      replicas: 1
+    environment:
+      LOG_LEVEL: debug
+
+  worker:
+    image: ghcr.io/${GHCR_OWNER}/duocafe-api:${IMAGE_TAG:-latest}
+    build: !reset null
+    environment:
+      LOG_LEVEL: debug
+
+  scheduler:
+    image: ghcr.io/${GHCR_OWNER}/duocafe-api:${IMAGE_TAG:-latest}
+    build: !reset null
+    environment:
+      LOG_LEVEL: debug
+
+  # En staging: Supabase Studio accesible directamente (sin Traefik auth)
+  supabase-studio:
+    ports:
+      - "54323:3000"
+    labels:
+      - "traefik.enable=false"
+
+  # En staging: exponer Supabase Kong directamente para debugging
+  supabase-kong:
+    ports:
+      - "8000:8000"
+    labels:
+      - "traefik.enable=false"
+
+  # En staging: exponer PostgreSQL para acceso con cliente externo
+  supabase-db:
+    ports:
+      - "5432:5432"
+
+  # Inbucket: receptor de emails de prueba (no necesita SMTP real)
+  inbucket:
+    image: inbucket/inbucket:3.0.4
+    container_name: duocafe-inbucket
+    expose:
+      - "2500"
+    ports:
+      - "9000:9000"   # Web UI: http://VPS_IP:9000
+      - "1100:1100"
+    networks:
+      - duocafe-network
+    restart: unless-stopped
+
+  # En staging: GoTrue usa Inbucket y autoconfirma emails
+  supabase-auth:
+    environment:
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_USER: ""
+      GOTRUE_SMTP_PASS: ""
+      GOTRUE_SMTP_ADMIN_EMAIL: "noreply@duocafe.local"

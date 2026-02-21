@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.production
+.env.staging
+.env.deploy
+.env.infra
+*.env
+
+# Generated secrets (nunca commitear)
+scripts/_secrets.json
+envs/dev/.env
+envs/testing/.env
+envs/production/.env
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Turbo cache
+.turbo/
+
+# Test coverage
+coverage/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# SSL certs (managed by Traefik/Let's Encrypt)
+docker/traefik/ssl/
+
+# Backups (datos reales)
+backups/data/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/.packages
+apps/mobile/.pub-cache/
+apps/mobile/build/
+apps/mobile/*.iml
+
+# Prisma
+apps/api/prisma/migrations/dev/

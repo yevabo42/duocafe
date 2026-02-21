@@ -1,0 +1,122 @@
+name: CI — Tests & Checks
+
+on:
+  push:
+    branches: [develop, testing, main, 'feature/**']
+  pull_request:
+    branches: [develop, testing, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # 1. Type-check todos los paquetes
+  # ─────────────────────────────────────────────────────────────
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Get pnpm store
+        id: pnpm-cache
+        run: echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @duocafe/shared exec tsc --noEmit
+        name: Type-check shared
+
+      - run: pnpm --filter @duocafe/api exec tsc --noEmit
+        name: Type-check api
+
+      - run: pnpm --filter @duocafe/web exec tsc --noEmit
+        name: Type-check web
+
+  # ─────────────────────────────────────────────────────────────
+  # 2. Unit tests (shared + API)
+  # ─────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Get pnpm store
+        id: pnpm-cache
+        run: echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Tests @duocafe/shared
+        run: pnpm --filter @duocafe/shared test
+
+      - name: Tests @duocafe/api
+        run: pnpm --filter @duocafe/api test
+
+  # ─────────────────────────────────────────────────────────────
+  # 3. Dockerfile lint
+  # ─────────────────────────────────────────────────────────────
+  docker-lint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        name: Lint API Dockerfile
+        with:
+          dockerfile: apps/api/Dockerfile
+          ignore: DL3018,DL3008,SC2086
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        name: Lint Web Dockerfile
+        with:
+          dockerfile: apps/web/Dockerfile
+          ignore: DL3018,DL3008,SC2086
+
+  # ─────────────────────────────────────────────────────────────
+  # 4. Auditoria de seguridad
+  # ─────────────────────────────────────────────────────────────
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - run: pnpm audit --audit-level=high
+        continue-on-error: true   # No bloquear por devDeps
