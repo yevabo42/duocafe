@@ -159,9 +159,22 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "envs/dev/docker-compose.yml"
+          source: "envs/dev/docker-compose.yml,database/migrations"
           target: /opt/duocafe
           overwrite: true
+
+      - name: Actualizar script de deploy en VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            curl -sL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/deploy-env.sh" \
+              -o /tmp/deploy-env.sh && \
+            sudo mv /tmp/deploy-env.sh /opt/duocafe/scripts/deploy-env.sh && \
+            sudo chmod +x /opt/duocafe/scripts/deploy-env.sh
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0

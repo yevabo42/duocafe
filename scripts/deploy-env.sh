@@ -106,12 +106,26 @@ until docker compose \
     pg_isready -d "$DB_NAME" -q 2>/dev/null; do
     sleep 2
     WAITED=$((WAITED + 2))
-    if [[ $WAITED -ge 30 ]]; then
+    if [[ $WAITED -ge 60 ]]; then
         warn "Timeout esperando la base de datos (puede estar ya lista)"
         break
     fi
 done
 ok "Base de datos lista"
+
+# ─── Esperar que GoTrue inicialice el schema auth ────────
+# GoTrue crea auth.users al arrancar; las migraciones dependen de esta tabla
+log "Esperando GoTrue (schema auth)..."
+WAITED=0
+until $COMPOSE exec -T ${SVC_PREFIX}auth wget -qO- http://localhost:9999/health &>/dev/null; do
+    sleep 5
+    WAITED=$((WAITED + 5))
+    if [[ $WAITED -ge 120 ]]; then
+        warn "GoTrue no respondio en 120s, continuando de todas formas"
+        break
+    fi
+done
+ok "GoTrue listo"
 
 # ─── Ejecutar migraciones ────────────────────────────────
 log "Aplicando migraciones SQL a $DB_NAME..."
