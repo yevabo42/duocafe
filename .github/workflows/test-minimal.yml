@@ -11,3 +11,4 @@ jobs:
       - run: echo "Workflow funcionando correctamente"
 # trigger
 # retry sá., 21 de feb. de 2026 17:13:03
+# test publico
