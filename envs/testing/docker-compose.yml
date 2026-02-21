@@ -223,7 +223,7 @@ services:
   # ── Supabase Studio ───────────────────────────────
   dev-studio:
     <<: *supabase-common
-    image: supabase/studio:2024.01.22-sha-bfbb53b
+    image: supabase/studio:2026.02.16-sha-26c615c
     container_name: duocafe-testing-studio
     environment:
       STUDIO_PG_META_URL: http://dev-meta:8080
