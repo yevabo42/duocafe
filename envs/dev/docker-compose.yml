@@ -32,6 +32,11 @@ services:
   dev-auth:
     <<: *supabase-common
     image: supabase/gotrue:v2.151.0
+    networks:
+      duocafe-infra: {}
+      duocafe-dev:
+        aliases:
+          - supabase-auth
     container_name: duocafe-dev-auth
     environment:
       GOTRUE_API_HOST: 0.0.0.0
@@ -82,6 +87,11 @@ services:
   dev-rest:
     <<: *supabase-common
     image: postgrest/postgrest:v12.0.3
+    networks:
+      duocafe-infra: {}
+      duocafe-dev:
+        aliases:
+          - supabase-rest
     container_name: duocafe-dev-rest
     environment:
       PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/duocafe_dev
@@ -254,6 +264,11 @@ services:
   dev-meta:
     <<: *supabase-common
     image: supabase/postgres-meta:v0.80.0
+    networks:
+      duocafe-infra: {}
+      duocafe-dev:
+        aliases:
+          - supabase-meta
     container_name: duocafe-dev-meta
     environment:
       PG_META_PORT: 8080

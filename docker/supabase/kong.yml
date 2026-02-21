@@ -2,21 +2,8 @@ _format_version: "1.1"
 
 ###############################################################################
 # DUOCAFE - Kong API Gateway para Supabase Self-Hosted
+# Nota: key-auth activado via env vars, los upstreams usan alias de red
 ###############################################################################
-
-consumers:
-  - username: anon
-    keyauth_credentials:
-      - key: ${SUPABASE_ANON_KEY}
-  - username: service_role
-    keyauth_credentials:
-      - key: ${SUPABASE_SERVICE_ROLE_KEY}
-
-acls:
-  - consumer: anon
-    group: anon
-  - consumer: service_role
-    group: admin
 
 services:
   ## Auth - GoTrue
@@ -59,15 +46,6 @@ services:
           - /auth/v1/
     plugins:
       - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: false
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - anon
-            - admin
 
   ## REST - PostgREST
   - name: rest-v1
@@ -79,57 +57,8 @@ services:
           - /rest/v1/
     plugins:
       - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: true
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - anon
-            - admin
 
-  ## Realtime
-  - name: realtime-v1
-    url: http://supabase-realtime:4000/socket/
-    routes:
-      - name: realtime-v1-all
-        strip_path: true
-        paths:
-          - /realtime/v1/
-    plugins:
-      - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: false
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - anon
-            - admin
-
-  ## Storage
-  - name: storage-v1
-    url: http://supabase-storage:5000/
-    routes:
-      - name: storage-v1-all
-        strip_path: true
-        paths:
-          - /storage/v1/
-    plugins:
-      - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: true
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - anon
-            - admin
-
-  ## Meta (solo admin)
+  ## Meta (postgres-meta)
   - name: meta
     url: http://supabase-meta:8080/
     routes:
@@ -138,14 +67,7 @@ services:
         paths:
           - /pg/
     plugins:
-      - name: key-auth
-        config:
-          hide_credentials: false
-      - name: acl
-        config:
-          hide_groups_header: true
-          allow:
-            - admin
+      - name: cors
 
 plugins:
   - name: cors
