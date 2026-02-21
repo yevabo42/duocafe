@@ -89,25 +89,25 @@ services:
 
   # ── PgBouncer: connection pooling ────────────────────
   pgbouncer:
-    image: bitnami/pgbouncer:1.22.1
+    image: edoburu/pgbouncer:latest
     container_name: duocafe-pgbouncer
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: postgres
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
-      PGBOUNCER_DATABASE: "*"
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 500
-      PGBOUNCER_DEFAULT_POOL_SIZE: 20
-      PGBOUNCER_AUTH_TYPE: scram-sha-256
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256
+      ADMIN_USERS: postgres
     expose:
       - "5432"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U postgres -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -154,7 +154,7 @@ services:
 networks:
   duocafe-infra:
     name: duocafe-infra
-    driver: bridge
+    external: true
 
 volumes:
   postgres-data:
