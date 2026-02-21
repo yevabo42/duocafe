@@ -6,15 +6,15 @@
 # ---- Base ----
 FROM node:20-alpine AS base
 WORKDIR /app
-RUN npm install -g pnpm@latest --quiet
+RUN npm install -g pnpm@10.30.1 --quiet
 
 # ---- Dependencies ----
 FROM base AS deps
 # Copiar manifests del workspace para instalar dependencias
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
-RUN pnpm install --frozen-lockfile --filter @duocafe/api... 2>/dev/null || pnpm install --filter @duocafe/api...
+RUN pnpm install --frozen-lockfile --filter @duocafe/api...
 
 # ---- Builder ----
 FROM deps AS builder
@@ -34,7 +34,7 @@ CMD ["node", "-r", "ts-node/register", "-r", "tsconfig-paths/register", "src/mai
 # ---- Production ----
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN npm install -g pnpm@latest --quiet
+RUN npm install -g pnpm@10.30.1 --quiet
 
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./
