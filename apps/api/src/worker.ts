@@ -21,8 +21,13 @@ async function startWorker() {
   // new Worker('heart-regeneration', ..., { connection: redis })
   // new Worker('analytics', ..., { connection: redis })
 
+  // Keep-alive hasta Sprint 2 cuando se registren los Workers de BullMQ.
+  // Sin un handle activo Node.js termina inmediatamente y Docker reinicia en loop.
+  const keepAlive = setInterval(() => {}, 1 << 30);
+
   process.on('SIGTERM', () => {
     logger.info('Worker shutting down gracefully...');
+    clearInterval(keepAlive);
     process.exit(0);
   });
 }
