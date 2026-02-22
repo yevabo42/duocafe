@@ -122,6 +122,7 @@ services:
       KONG_PLUGINS: request-transformer,cors,key-auth,acl
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+      KONG_NGINX_WORKER_PROCESSES: "2"   # Limitar workers para evitar OOM (8 vCPUs lanzaria 8 workers)
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY_DEV}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
     volumes:
@@ -144,7 +145,7 @@ services:
       start_period: 30s
     deploy:
       resources:
-        limits: { memory: 256M, cpus: "0.25" }
+        limits: { memory: 512M, cpus: "0.5" }   # 256M era insuficiente para 2 workers Lua
 
   # ── NestJS API ────────────────────────────────────
   dev-api:
