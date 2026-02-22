@@ -27,16 +27,7 @@ export interface UserStreak {
 }
 
 // ============================================
-// CORAZONES
-// ============================================
-
-export interface UserHearts {
-  user_id: string;
-  hearts_remaining: number;
-  max_hearts: number;
-  next_regen_at: string | null;
-}
-
+// NOTA: UserHearts se define en learning.types.ts (sprint 2+)
 // ============================================
 // ACTIVIDAD
 // ============================================

@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 // Rutas que requieren autenticacion
-const PROTECTED_CONSUMER_PATHS = ['/home', '/rutas', '/logros', '/perfil', '/tienda'];
-const PROTECTED_ADMIN_PATHS = ['/admin/dashboard', '/admin/usuarios', '/admin/configuracion'];
+const PROTECTED_CONSUMER_PATHS = ['/home', '/rutas', '/logros', '/perfil', '/tienda', '/onboarding'];
 
 // Rutas solo para no-autenticados
 const AUTH_PATHS = ['/login', '/register', '/forgot-password'];
@@ -11,6 +10,10 @@ const AUTH_PATHS = ['/login', '/register', '/forgot-password'];
 export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
   const pathname = request.nextUrl.pathname;
+
+  // Propagar pathname como header para que los Server Components puedan leerlo
+  // (necesario para detectar rutas de onboarding en el consumer layout)
+  supabaseResponse.headers.set('x-pathname', pathname);
 
   // Rutas del admin
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
