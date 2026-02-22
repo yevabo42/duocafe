@@ -42,6 +42,9 @@ FROM node:20-alpine AS production
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+# Sin HOSTNAME=0.0.0.0 next standalone se enlaza al hostname del contenedor
+# y el healthcheck con 'localhost' falla (connection refused)
+ENV HOSTNAME=0.0.0.0
 
 WORKDIR /app
 

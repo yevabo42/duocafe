@@ -22,6 +22,9 @@ COPY packages/shared/ ./packages/shared/
 COPY apps/api/ ./apps/api/
 WORKDIR /app/apps/api
 RUN pnpm run build
+# pnpm deploy genera node_modules plano sin symlinks, apto para produccion
+WORKDIR /app
+RUN pnpm --filter @duocafe/api deploy --prod /prod
 
 # ---- Development ----
 FROM deps AS development
@@ -34,11 +37,10 @@ CMD ["node", "-r", "ts-node/register", "-r", "tsconfig-paths/register", "src/mai
 # ---- Production ----
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN npm install -g pnpm@10.30.1 --quiet
 
 COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /prod/node_modules ./node_modules
 COPY --from=builder /app/apps/api/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
 
 # Usuario no-root
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
