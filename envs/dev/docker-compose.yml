@@ -236,6 +236,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
       LOG_LEVEL: debug
+    healthcheck:
+      disable: true   # No expone HTTP; el Dockerfile hereda healthcheck de la API
     deploy:
       resources:
         limits: { memory: 512M, cpus: "0.5" }
@@ -257,6 +259,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
       LOG_LEVEL: debug
+    healthcheck:
+      disable: true   # No expone HTTP; el Dockerfile hereda healthcheck de la API
     deploy:
       resources:
         limits: { memory: 256M, cpus: "0.25" }
