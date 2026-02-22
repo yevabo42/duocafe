@@ -43,6 +43,9 @@ jobs:
       - run: pnpm --filter @duocafe/shared exec tsc --noEmit
         name: Type-check shared
 
+      - name: Build shared (genera dist/ para type-check de api y web)
+        run: pnpm --filter @duocafe/shared build
+
       - run: pnpm --filter @duocafe/api exec tsc --noEmit
         name: Type-check api
 
@@ -80,6 +83,9 @@ jobs:
 
       - name: Tests @duocafe/shared
         run: pnpm --filter @duocafe/shared test
+
+      - name: Build shared (requerido por tests de api)
+        run: pnpm --filter @duocafe/shared build
 
       - name: Tests @duocafe/api
         run: pnpm --filter @duocafe/api test

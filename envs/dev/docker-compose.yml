@@ -61,7 +61,7 @@ services:
     depends_on:
       - dev-inbucket
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9999/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9999/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -175,7 +175,7 @@ services:
       dev-kong:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -203,7 +203,7 @@ services:
     ports:
       - "4002:3000"   # Acceso directo para debugging
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 20s
       timeout: 5s
       retries: 3
@@ -232,11 +232,34 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: 2
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@pgbouncer:5432/duocafe_dev
+      SUPABASE_URL: http://dev-kong:8000
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
       LOG_LEVEL: debug
     deploy:
       resources:
         limits: { memory: 512M, cpus: "0.5" }
+
+  # ── BullMQ Scheduler ──────────────────────────────
+  dev-scheduler:
+    <<: *app-common
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER}/duocafe-api:latest}
+    container_name: duocafe-dev-scheduler
+    command: ["node", "dist/scheduler.js"]
+    environment:
+      NODE_ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 2
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@pgbouncer:5432/duocafe_dev
+      SUPABASE_URL: http://dev-kong:8000
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY_DEV}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET_DEV}
+      LOG_LEVEL: debug
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.25" }
 
   # ── Supabase Studio ───────────────────────────────
   dev-studio:
