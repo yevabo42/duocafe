@@ -24,7 +24,7 @@ WORKDIR /app/apps/api
 RUN pnpm run build
 # pnpm deploy genera node_modules plano sin symlinks, apto para produccion
 WORKDIR /app
-RUN pnpm --filter @duocafe/api deploy --prod /prod
+RUN pnpm --filter @duocafe/api deploy --prod --legacy /prod
 
 # ---- Development ----
 FROM deps AS development
