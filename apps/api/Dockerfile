@@ -20,6 +20,9 @@ RUN pnpm install --frozen-lockfile --filter @duocafe/api...
 FROM deps AS builder
 COPY packages/shared/ ./packages/shared/
 COPY apps/api/ ./apps/api/
+# Compilar shared primero para que el deploy produzca JS (no TS)
+WORKDIR /app
+RUN pnpm --filter @duocafe/shared build
 WORKDIR /app/apps/api
 RUN pnpm run build
 # pnpm deploy genera node_modules plano sin symlinks, apto para produccion

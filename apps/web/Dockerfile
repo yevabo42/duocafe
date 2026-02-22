@@ -33,6 +33,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY packages/shared/ ./packages/shared/
 COPY apps/web/ ./apps/web/
 
+# Compilar shared primero para que Next.js resuelva JS (no TS)
+WORKDIR /app
+RUN pnpm --filter @duocafe/shared build
+
 WORKDIR /app/apps/web
 RUN pnpm run build
 
