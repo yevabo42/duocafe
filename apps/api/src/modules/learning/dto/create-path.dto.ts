@@ -1,4 +1,5 @@
 import { IsBoolean, IsInt, IsOptional, IsString, IsUrl, MaxLength, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreatePathDto {
   @IsString()
@@ -14,6 +15,7 @@ export class CreatePathDto {
   order_index!: number;
 
   @IsOptional()
+  @Transform(({ value }) => value || undefined)
   @IsUrl()
   image_url?: string;
 }
@@ -34,6 +36,7 @@ export class UpdatePathDto {
   order_index?: number;
 
   @IsOptional()
+  @Transform(({ value }) => value || undefined)
   @IsUrl()
   image_url?: string;
 

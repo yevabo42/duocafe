@@ -165,7 +165,7 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: 2
-      CORS_ORIGINS: https://dev.${DOMAIN}
+      CORS_ORIGINS: https://dev.${DOMAIN},http://5.189.162.47:4002,http://5.189.162.47:3002
       LOG_LEVEL: debug
     expose:
       - "3000"
