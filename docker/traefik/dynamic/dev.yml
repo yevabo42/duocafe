@@ -1,0 +1,86 @@
+# =================================================
+# DUOCAFE - Rutas del ambiente DEV
+# Traefik file provider (sin Docker socket)
+# Dominio: 5.189.162.47.nip.io
+# =================================================
+
+http:
+  routers:
+    # ── HTTPS (con cert auto-firmado mientras haya rate limit en nip.io) ──
+    dev-web:
+      rule: "Host(`dev.5.189.162.47.nip.io`)"
+      entryPoints: ["websecure"]
+      service: dev-web
+      middlewares: [security-headers, compress]
+      tls:
+        certResolver: letsencrypt
+
+    dev-api:
+      rule: "Host(`api-dev.5.189.162.47.nip.io`)"
+      entryPoints: ["websecure"]
+      service: dev-api
+      middlewares: [security-headers, compress, rate-dev]
+      tls:
+        certResolver: letsencrypt
+
+    supabase-dev:
+      rule: "Host(`supabase-dev.5.189.162.47.nip.io`)"
+      entryPoints: ["websecure"]
+      service: supabase-dev
+      tls:
+        certResolver: letsencrypt
+
+    # ── HTTP → HTTPS solo para el frontend web ──────────────────────────────
+    dev-web-http:
+      rule: "Host(`dev.5.189.162.47.nip.io`)"
+      entryPoints: ["web"]
+      service: dev-web
+      middlewares: [redirect-to-https]
+
+    # ── HTTP sin redireccion (necesario porque NEXT_PUBLIC_API_URL es http://)
+    # El browser bloquea la redireccion a HTTPS con cert auto-firmado ──
+    dev-api-http:
+      rule: "Host(`api-dev.5.189.162.47.nip.io`)"
+      entryPoints: ["web"]
+      service: dev-api
+      middlewares: [rate-dev]
+
+    supabase-dev-http:
+      rule: "Host(`supabase-dev.5.189.162.47.nip.io`)"
+      entryPoints: ["web"]
+      service: supabase-dev
+
+  services:
+    dev-web:
+      loadBalancer:
+        servers:
+          - url: "http://duocafe-dev-web:3000"
+
+    dev-api:
+      loadBalancer:
+        servers:
+          - url: "http://duocafe-dev-api:3000"
+
+    supabase-dev:
+      loadBalancer:
+        servers:
+          - url: "http://duocafe-dev-kong:8000"
+
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        frameDeny: true
+
+    compress:
+      compress: {}
+
+    rate-dev:
+      rateLimit:
+        average: 500
+        burst: 200
+
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: false

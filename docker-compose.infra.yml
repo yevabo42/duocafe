@@ -10,18 +10,19 @@ version: "3.8"
 services:
 
   # ── Traefik: reverse proxy para los 3 ambientes ─────
+  # Nota: usa file provider en lugar de Docker provider porque Docker 28+
+  # rechaza la versión 1.24 del Go SDK de Traefik durante la negociación.
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.3
     container_name: duocafe-traefik
     command:
       - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=duocafe-infra"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Sin redirect global HTTP→HTTPS: el redirect se maneja por router en dev.yml
+      # para permitir que la API y Supabase sean accesibles por HTTP (NEXT_PUBLIC vars horneadas)
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
@@ -31,8 +32,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-letsencrypt:/letsencrypt
+      - ./docker/traefik/dynamic:/etc/traefik/dynamic:ro
     restart: unless-stopped
     networks:
       - duocafe-infra

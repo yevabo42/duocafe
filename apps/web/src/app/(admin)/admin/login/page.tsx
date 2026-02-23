@@ -50,7 +50,7 @@ function AdminLoginContent() {
       return;
     }
 
-    router.push('/admin/dashboard');
+    router.push('/admin/contenido');
   }
 
   return (
